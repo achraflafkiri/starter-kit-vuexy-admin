@@ -4,7 +4,7 @@
 import { useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -34,6 +34,13 @@ import themeConfig from '@configs/themeConfig'
 // Hook Imports
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
+import { Login } from '@/app/api/functions/auth'
+
+// Util Imports
+import { getLocalizedUrl } from '@/utils/i18n'
+import { Locale } from '@/configs/i18n'
+import { handleAuthNavigation, storeAuthToken } from '@/middleware/authMiddleware'
+
 
 // Styled Custom Components
 const LoginIllustration = styled('img')(({ theme }) => ({
@@ -59,9 +66,20 @@ const MaskImg = styled('img')({
   zIndex: -1
 })
 
+interface UserLogin {
+  email: string;
+  password: string;
+}
+
 const LoginV2 = ({ mode }: { mode: SystemMode }) => {
   // States
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isPasswordShown, setIsPasswordShown] = useState(false)
+  const [ErrorMessage, setErrorMessage] = useState("");
+
+  const searchParams = useSearchParams();
+  const { lang: locale } = useParams()
 
   // Vars
   const darkImg = '/images/pages/auth-mask-dark.png'
@@ -88,9 +106,46 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
 
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    let userLogin: UserLogin;
+
+    if (email.includes('@')) {
+      userLogin = {
+        email,
+        password
+      };
+    } else {
+      userLogin = {
+        username: email,
+        password
+      };
+    }
+
+    try {
+      const loginRes = await Login(userLogin);
+
+      if (loginRes.status === 200) {
+        const accessToken = loginRes.data.data.token; // Assuming your API response includes accessToken
+        console.log("token => ", accessToken);
+
+        storeAuthToken(accessToken); // Store token using middleware function
+        router.push('/home');
+      }
+    } catch (error: any) {
+      if (error?.response?.status === 400) {
+        setErrorMessage(error.response.data.message);
+      }
+      console.log("Error: ", error);
+    }
+  };
+
+
   return (
     <div className='flex bs-full justify-center'>
-      <div
+      {/* <div
         className={classnames(
           'flex bs-full items-center justify-center flex-1 min-bs-[100dvh] relative p-6 max-md:hidden',
           {
@@ -106,8 +161,19 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
             className={classnames({ 'scale-x-[-1]': theme.direction === 'rtl' })}
           />
         )}
-      </div>
-      <div className='flex justify-center items-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
+      </div> */}
+
+
+      <div className='flex flex-col justify-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
+        {
+          ErrorMessage && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-3 flex items-center" role="alert">
+              <i className="tabler-alert-triangle text-red-700 mr-2" /> {/* Add your icon here */}
+              <span>{ErrorMessage}</span>
+            </div>
+          )
+        }
+
         <Link className='absolute block-start-5 sm:block-start-[33px] inline-start-6 sm:inline-start-[38px]'>
           <Logo />
         </Link>
@@ -119,19 +185,25 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
           <form
             noValidate
             autoComplete='off'
-            onSubmit={e => {
-              e.preventDefault()
-              router.push('/')
-            }}
+            onSubmit={handleSubmit}
             className='flex flex-col gap-5'
           >
-            <CustomTextField autoFocus fullWidth label='Email or Username' placeholder='Enter your email or username' />
+            <CustomTextField
+              autoFocus
+              fullWidth
+              label='Email or Username'
+              placeholder='Enter your email or username'
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
             <CustomTextField
               fullWidth
               label='Password'
               placeholder='············'
               id='outlined-adornment-password'
               type={isPasswordShown ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position='end'>
@@ -157,21 +229,7 @@ const LoginV2 = ({ mode }: { mode: SystemMode }) => {
                 Create an account
               </Typography>
             </div>
-            <Divider className='gap-2 text-textPrimary'>or</Divider>
-            <div className='flex justify-center items-center gap-1.5'>
-              <IconButton className='text-facebook' size='small'>
-                <i className='tabler-brand-facebook-filled' />
-              </IconButton>
-              <IconButton className='text-twitter' size='small'>
-                <i className='tabler-brand-twitter-filled' />
-              </IconButton>
-              <IconButton className='text-textPrimary' size='small'>
-                <i className='tabler-brand-github-filled' />
-              </IconButton>
-              <IconButton className='text-error' size='small'>
-                <i className='tabler-brand-google-filled' />
-              </IconButton>
-            </div>
+
           </form>
         </div>
       </div>
